@@ -69,58 +69,218 @@
     return self;
 }
 
-#pragma mark - Convenience wrappers used for all RLMDictionary types
-
-- (void)addObjects:(NSDictionary *)dictionary {
-    for (id key in dictionary) {
-        self[key] = dictionary[key];
+void RLMDictionaryValidateMatchingObjectType(__unsafe_unretained RLMDictionary *const dictionary,
+                                             __unsafe_unretained id const key,
+                                             __unsafe_unretained id const value) {
+    if (!key) {
+        @throw RLMException(@"Invalid nil key for dictionary expecting key of type '%@'.",
+                            dictionary->_objectClassName ?: RLMTypeToString(dictionary->_keyType));
+    }
+    if (![key conformsToProtocol:@protocol(RLMDictionaryKey)] ||
+        !RLMValidateValue(key, dictionary->_keyType, false, false, nil)) {
+        @throw RLMException(@"Invalid key '%@' of type '%@' for expected type '%@'.",
+                            key, [key class], RLMTypeToString(dictionary->_keyType));
+    }
+    if (!value) {
+        return;
+    }
+    if (dictionary->_type != RLMPropertyTypeObject) {
+        if (!RLMValidateValue(value, dictionary->_type, dictionary->_optional, false, nil)) {
+            @throw RLMException(@"Invalid value '%@' of type '%@' for expected type '%@%s'.",
+                                value, [value class], RLMTypeToString(dictionary->_type),
+                                dictionary->_optional ? "?" : "");
+        }
+        return;
+    }
+    auto valueObject = RLMDynamicCast<RLMObjectBase>(value);
+    if (!valueObject) {
+        return;
+    }
+    if (!valueObject->_objectSchema) {
+        @throw RLMException(@"Object cannot be inserted unless the schema is initialized. "
+                            "This can happen if you try to insert objects into a RLMDictionary / Map from a default value or from an overriden unmanaged initializer (`init()`) or if the key is uninitialized.");
     }
 }
 
-- (BOOL)isInvalidated {
-    return NO;
+static void changeDictionary(__unsafe_unretained RLMDictionary *const dictionary,
+                      dispatch_block_t f) {
+    if (!dictionary->_backingCollection) {
+        dictionary->_backingCollection = [NSMutableDictionary new];
+    }
+    if (RLMObjectBase *parent = dictionary->_parentObject) {
+        [parent willChangeValueForKey:dictionary->_key];
+        f();
+        [parent didChangeValueForKey:dictionary->_key];
+    }
+    else {
+        f();
+    }
+}
+
+#pragma mark - Unmanaged RLMDictionary implementation
+
+- (RLMRealm *)realm {
+    return nil;
 }
 
 - (NSUInteger)count {
     return _backingCollection.count;
 }
 
-// The compiler complains about the method's argument type not matching due to
-// it not having the generic type attached, but it doesn't seem to be possible
-// to actually include the generic type
-// http://www.openradar.me/radar?id=6135653276319744
-#pragma clang diagnostic ignored "-Wmismatched-parameter-types"
-- (nonnull RLMNotificationToken *)addNotificationBlock:(nonnull void (^)(RLMDictionary *, RLMCollectionChange *, NSError *))block {
-    @throw RLMException(@"This method may only be called on RLMDictionary instances retrieved from an RLMRealm");
+- (NSArray *)allKeys {
+    return _backingCollection.allKeys;
 }
 
-- (RLMNotificationToken *)addNotificationBlock:(void (^)(RLMDictionary *, RLMCollectionChange *, NSError *))block
-                                         queue:(nullable dispatch_queue_t)queue {
-    @throw RLMException(@"This method may only be called on RLMDictionary instances retrieved from an RLMRealm");
+- (NSArray *)allValues {
+    return _backingCollection.allValues;
 }
 
-- (instancetype)freeze {
-    @throw RLMException(@"This method may only be called on RLMDictionary instances retrieved from an RLMRealm");
+- (nullable id)objectForKey:(id<RLMDictionaryKey>)key {
+    return [_backingCollection objectForKey:key];
 }
 
-- (instancetype)thaw {
-    @throw RLMException(@"This method may only be called on RLMDictionary instances retrieved from an RLMRealm");
+- (nullable id)objectForKeyedSubscript:(id<RLMDictionaryKey>)key {
+    return [_backingCollection objectForKey:key];
 }
 
-- (id)minOfProperty:(NSString *)property {
-    return [self aggregateProperty:property operation:@"@min" method:_cmd];
+- (BOOL)isInvalidated {
+    return NO;
 }
 
-- (id)maxOfProperty:(NSString *)property {
-    return [self aggregateProperty:property operation:@"@max" method:_cmd];
+- (void)setValue:(nullable id)value forKey:(nonnull NSString *)key {
+    RLMDictionaryValidateMatchingObjectType(self, key, value);
+    changeDictionary(self, ^{
+        [_backingCollection setValue:value forKey:key];
+    });
 }
 
-- (id)sumOfProperty:(NSString *)property {
-    return [self aggregateProperty:property operation:@"@sum" method:_cmd];
+- (void)setDictionary:(RLMDictionary *)dictionary {
+    changeDictionary(self, ^{
+        [dictionary enumerateKeysAndObjectsUsingBlock:^(id _Nonnull key, id _Nonnull value, BOOL *) {
+            RLMDictionaryValidateMatchingObjectType(self, key, value);
+            self[key] = value;
+        }];
+    });
 }
 
-- (id)averageOfProperty:(NSString *)property {
-    return [self aggregateProperty:property operation:@"@avg" method:_cmd];
+- (void)setObject:(id)obj forKeyedSubscript:(id<RLMDictionaryKey>)key {
+    RLMDictionaryValidateMatchingObjectType(self, key, obj);
+    changeDictionary(self, ^{
+        _backingCollection[(id)key] = obj;
+    });
+}
+
+- (void)setObject:(id)obj forKey:(id<RLMDictionaryKey>)key {
+    RLMDictionaryValidateMatchingObjectType(self, key, obj);
+    changeDictionary(self, ^{
+        [_backingCollection setObject:obj forKey:key];
+    });
+}
+
+- (void)removeAllObjects {
+    changeDictionary(self, ^{
+        [_backingCollection removeAllObjects];
+    });
+}
+
+- (void)removeObjectsForKeys:(NSArray *)keyArray {
+    changeDictionary(self, ^{
+        [_backingCollection removeObjectsForKeys:keyArray];
+    });
+}
+
+- (void)removeObjectForKey:(id<RLMDictionaryKey>)key {
+    changeDictionary(self, ^{
+        [_backingCollection removeObjectForKey:key];
+    });
+}
+
+- (void)enumerateKeysAndObjectsUsingBlock:(void (^)(id <RLMDictionaryKey> key,
+                                                    id obj, BOOL *stop))block {
+    [_backingCollection enumerateKeysAndObjectsUsingBlock:block];
+}
+
+- (nullable id)valueForKey:(nonnull NSString *)key {
+    if ([key isEqualToString:RLMInvalidatedKey]) {
+        return @NO; // Unmanaged dictionaries are never invalidated
+    }
+    if (!_backingCollection) {
+        _backingCollection = [NSMutableDictionary new];
+    }
+    return [_backingCollection valueForKey:key];
+}
+
+- (id)valueForKeyPath:(NSString *)keyPath {
+    if ([keyPath characterAtIndex:0] != '@') {
+        return _backingCollection ? [_backingCollection valueForKeyPath:keyPath] : [super valueForKeyPath:keyPath];
+    }
+    if (!_backingCollection) {
+        _backingCollection = [NSMutableDictionary new];
+    }
+    NSUInteger dot = [keyPath rangeOfString:@"."].location;
+    if (dot == NSNotFound) {
+        return [_backingCollection valueForKeyPath:keyPath];
+    }
+
+    NSString *op = [keyPath substringToIndex:dot];
+    NSString *key = [keyPath substringFromIndex:dot + 1];
+    return [self aggregateProperty:key operation:op method:nil];
+}
+
+- (void)addEntriesFromDictionary:(RLMDictionary *)otherDictionary {
+    [otherDictionary enumerateKeysAndObjectsUsingBlock:^(id _Nonnull key, id _Nonnull value, BOOL *) {
+        RLMDictionaryValidateMatchingObjectType(self, key, value);
+    }];
+    changeDictionary(self, ^{
+        [_backingCollection addEntriesFromDictionary:otherDictionary->_backingCollection];
+    });
+}
+
+- (NSUInteger)countByEnumeratingWithState:(nonnull NSFastEnumerationState *)state
+                                  objects:(__unsafe_unretained id  _Nullable * _Nonnull)buffer
+                                    count:(NSUInteger)len {
+    if (state->state != 0) {
+        return 0;
+    }
+
+    // We need to enumerate a copy of the backing dictionary so that it doesn't
+    // reflect changes made during enumeration. This copy has to be autoreleased
+    // (since there's nowhere for us to store a strong reference), and uses
+    // RLMDictionaryHolder rather than an NSDictionary because NSDictionary doesn't guarantee
+    // that it'll use a single contiguous block of memory, and if it doesn't
+    // we'd need to forward multiple calls to this method to the same NSArray,
+    // which would require holding a reference to it somewhere.
+    __autoreleasing RLMDictionaryHolder *copy = [[RLMDictionaryHolder alloc] init];
+    copy->items = std::make_unique<id[]>(_backingCollection.count);
+
+    NSUInteger i = 0;
+    for (id object in _backingCollection.allValues) {
+        copy->items[i++] = object;
+    }
+
+    state->itemsPtr = (__unsafe_unretained id *)(void *)copy->items.get();
+    // needs to point to something valid, but the whole point of this is so
+    // that it can't be changed
+    state->mutationsPtr = state->extra;
+    state->state = i;
+
+    return i;
+}
+
+#pragma mark - Aggregate operations
+
+static bool canAggregate(RLMPropertyType type, bool allowDate) {
+    switch (type) {
+        case RLMPropertyTypeInt:
+        case RLMPropertyTypeFloat:
+        case RLMPropertyTypeDouble:
+        case RLMPropertyTypeDecimal128:
+            return true;
+        case RLMPropertyTypeDate:
+            return allowDate;
+        default:
+            return false;
+    }
 }
 
 - (RLMPropertyType)typeForProperty:(NSString *)propertyName {
@@ -191,6 +351,22 @@
     return sum && !result ? @0 : result;
 }
 
+- (id)minOfProperty:(NSString *)property {
+    return [self aggregateProperty:property operation:@"@min" method:_cmd];
+}
+
+- (id)maxOfProperty:(NSString *)property {
+    return [self aggregateProperty:property operation:@"@max" method:_cmd];
+}
+
+- (id)sumOfProperty:(NSString *)property {
+    return [self aggregateProperty:property operation:@"@sum" method:_cmd];
+}
+
+- (id)averageOfProperty:(NSString *)property {
+    return [self aggregateProperty:property operation:@"@avg" method:_cmd];
+}
+
 - (nonnull RLMResults *)objectsWhere:(nonnull NSString *)predicateFormat, ... {
     va_list args;
     va_start(args, predicateFormat);
@@ -203,21 +379,28 @@
     return [self objectsWithPredicate:[NSPredicate predicateWithFormat:predicateFormat arguments:args]];
 }
 
-- (nonnull RLMResults *)objectsWithPredicate:(nonnull NSPredicate *)predicate {
-    @throw RLMException(@"This method may only be called on RLMDictionary instances retrieved from an RLMRealm");
+- (BOOL)isEqual:(id)object {
+    if (auto dictionary = RLMDynamicCast<RLMDictionary>(object)) {
+        return !dictionary.realm
+        && ((_backingCollection.count == 0 && dictionary->_backingCollection.count == 0)
+            || [_backingCollection isEqual:dictionary->_backingCollection]);
+    }
+    return NO;
 }
 
-- (void)setValue:(nullable id)value forKey:(nonnull NSString *)key {
-    if ([key isEqualToString:@"self"]) {
-        RLMDictionaryValidateMatchingObjectType(self, key, value);
-        _backingCollection[key] = value;
-    }
-    else if (_type == RLMPropertyTypeObject) {
-        [_backingCollection setValue:value forKey:key];
-    }
-    else {
-        [self setValue:value forUndefinedKey:key];
-    }
+- (void)addObserver:(NSObject *)observer forKeyPath:(NSString *)keyPath
+            options:(NSKeyValueObservingOptions)options context:(void *)context {
+    RLMCollectionValidateObservationKey<RLMDictionary>(keyPath, self);
+    [super addObserver:observer forKeyPath:keyPath options:options context:context];
+}
+
+#pragma mark - Methods unsupported on unmanaged RLMDictionary instances
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-parameter"
+
+- (nonnull RLMResults *)objectsWithPredicate:(nonnull NSPredicate *)predicate {
+    @throw RLMException(@"This method may only be called on RLMDictionary instances retrieved from an RLMRealm");
 }
 
 - (RLMResults *)sortedResultsUsingDescriptors:(nonnull NSArray<RLMSortDescriptor *> *)properties {
@@ -236,211 +419,33 @@
     @throw RLMException(@"RLMDictionary does not implement indexOfObjectWithPredicate:");
 }
 
-- (id)valueForKeyPath:(NSString *)keyPath {
-    if ([keyPath characterAtIndex:0] != '@') {
-        return _backingCollection ? [_backingCollection valueForKeyPath:keyPath] : [super valueForKeyPath:keyPath];
-    }
-    if (!_backingCollection) {
-        _backingCollection = [NSMutableDictionary new];
-    }
-    NSUInteger dot = [keyPath rangeOfString:@"."].location;
-    if (dot == NSNotFound) {
-        return [_backingCollection valueForKeyPath:keyPath];
-    }
-
-    NSString *op = [keyPath substringToIndex:dot];
-    NSString *key = [keyPath substringFromIndex:dot + 1];
-    return [self aggregateProperty:key operation:op method:nil];
+// The compiler complains about the method's argument type not matching due to
+// it not having the generic type attached, but it doesn't seem to be possible
+// to actually include the generic type
+// http://www.openradar.me/radar?id=6135653276319744
+#pragma clang diagnostic ignored "-Wmismatched-parameter-types"
+- (nonnull RLMNotificationToken *)addNotificationBlock:(nonnull void (^)(RLMDictionary *, RLMCollectionChange *, NSError *))block {
+    @throw RLMException(@"This method may only be called on RLMDictionary instances retrieved from an RLMRealm");
 }
 
-- (nullable id)valueForKey:(nonnull NSString *)key {
-    if ([key isEqualToString:RLMInvalidatedKey]) {
-        return @NO; // Unmanaged dictionaries are never invalidated
-    }
-    if (!_backingCollection) {
-        _backingCollection = [NSMutableDictionary new];
-    }
-    return [_backingCollection valueForKey:key];
+- (RLMNotificationToken *)addNotificationBlock:(void (^)(RLMDictionary *, RLMCollectionChange *, NSError *))block
+                                         queue:(nullable dispatch_queue_t)queue {
+    @throw RLMException(@"This method may only be called on RLMDictionary instances retrieved from an RLMRealm");
+}
+
+- (instancetype)freeze {
+    @throw RLMException(@"This method may only be called on RLMDictionary instances retrieved from an RLMRealm");
+}
+
+- (instancetype)thaw {
+    @throw RLMException(@"This method may only be called on RLMDictionary instances retrieved from an RLMRealm");
 }
 
 - (nonnull id)objectAtIndex:(NSUInteger)index {
     @throw RLMException(@"RLMDictionary does not implement objectAtIndex:");
 }
 
-
-- (NSUInteger)countByEnumeratingWithState:(nonnull NSFastEnumerationState *)state
-                                  objects:(__unsafe_unretained id  _Nullable * _Nonnull)buffer
-                                    count:(NSUInteger)len {
-    if (state->state != 0) {
-        return 0;
-    }
-
-    // We need to enumerate a copy of the backing dictionary so that it doesn't
-    // reflect changes made during enumeration. This copy has to be autoreleased
-    // (since there's nowhere for us to store a strong reference), and uses
-    // RLMDictionaryHolder rather than an NSDictionary because NSDictionary doesn't guarantee
-    // that it'll use a single contiguous block of memory, and if it doesn't
-    // we'd need to forward multiple calls to this method to the same NSArray,
-    // which would require holding a reference to it somewhere.
-    __autoreleasing RLMDictionaryHolder *copy = [[RLMDictionaryHolder alloc] init];
-    copy->items = std::make_unique<id[]>(_backingCollection.count);
-
-    NSUInteger i = 0;
-    for (id object in _backingCollection.allValues) {
-        copy->items[i++] = object;
-    }
-
-    state->itemsPtr = (__unsafe_unretained id *)(void *)copy->items.get();
-    // needs to point to something valid, but the whole point of this is so
-    // that it can't be changed
-    state->mutationsPtr = state->extra;
-    state->state = i;
-
-    return i;
-}
-
-- (NSArray *)allKeys {
-    return _backingCollection.allKeys;
-}
-
-- (NSArray *)allValues {
-    return _backingCollection.allValues;
-}
-
-- (nullable id)objectForKey:(id<RLMDictionaryKey>)key {
-    return [_backingCollection objectForKey:key];
-}
-
-- (nullable id)objectForKeyedSubscript:(id<RLMDictionaryKey>)key {
-    return [_backingCollection objectForKey:key];
-}
-
-- (void)enumerateKeysAndObjectsUsingBlock:(void (^)(id key, id obj, BOOL *stop))block {
-    [_backingCollection enumerateKeysAndObjectsUsingBlock:block];
-}
-
-- (void)setDictionary:(RLMDictionary *)dictionary {
-    [dictionary enumerateKeysAndObjectsUsingBlock:^(id _Nonnull key, id _Nonnull value, BOOL *) {
-        RLMDictionaryValidateMatchingObjectType(self, key, value);
-        // TODO: This operation seems a bit redundant.
-    }];
-    changeDictionary(self, ^{
-        [_backingCollection setDictionary: dictionary->_backingCollection];
-    });
-}
-
-- (void)removeAllObjects {
-    changeDictionary(self, ^{
-        [_backingCollection removeAllObjects];
-    });
-}
-
-- (void)removeObjectsForKeys:(NSArray *)keyArray {
-    changeDictionary(self, ^{
-        [_backingCollection removeObjectsForKeys:keyArray];
-    });
-}
-
-- (void)removeObjectForKey:(id<RLMDictionaryKey>)key {
-    changeDictionary(self, ^{
-        [_backingCollection removeObjectForKey:key];
-    });
-}
-
-- (void)setObject:(id)obj forKeyedSubscript:(id<RLMDictionaryKey>)key {
-    RLMDictionaryValidateMatchingObjectType(self, key, obj);
-    changeDictionary(self, ^{
-        _backingCollection[(id)key] = obj;
-    });
-}
-
-- (void)setObject:(id)obj forKey:(id<RLMDictionaryKey>)key {
-    RLMDictionaryValidateMatchingObjectType(self, key, obj);
-    changeDictionary(self, ^{
-        [_backingCollection setObject:obj forKey:key];
-    });
-}
-
-- (void)addEntriesFromDictionary:(RLMDictionary *)otherDictionary {
-    [otherDictionary enumerateKeysAndObjectsUsingBlock:^(id _Nonnull key, id _Nonnull value, BOOL *) {
-        RLMDictionaryValidateMatchingObjectType(self, key, value);
-    }];
-    changeDictionary(self, ^{
-        [_backingCollection addEntriesFromDictionary:otherDictionary->_backingCollection];
-    });
-}
-
-static void validateDictionaryBounds(__unsafe_unretained RLMDictionary *const dictionary,
-                              NSUInteger index,
-                              bool allowOnePastEnd=false) {
-    NSUInteger max = dictionary->_backingCollection.count + allowOnePastEnd;
-    if (index >= max) {
-        @throw RLMException(@"Index %llu is out of bounds (must be less than %llu).",
-                            (unsigned long long)index, (unsigned long long)max);
-    }
-}
-
-static bool canAggregate(RLMPropertyType type, bool allowDate) {
-    switch (type) {
-        case RLMPropertyTypeInt:
-        case RLMPropertyTypeFloat:
-        case RLMPropertyTypeDouble:
-        case RLMPropertyTypeDecimal128:
-            return true;
-        case RLMPropertyTypeDate:
-            return allowDate;
-        default:
-            return false;
-    }
-}
-
-void RLMDictionaryValidateMatchingObjectType(__unsafe_unretained RLMDictionary *const dictionary,
-                                             __unsafe_unretained id const key,
-                                             __unsafe_unretained id const value) {
-    if (!key) {
-        @throw RLMException(@"Invalid nil key for dictionary expecting key of type '%@'.",
-                            dictionary->_objectClassName ?: RLMTypeToString(dictionary->_keyType));
-    }
-    if (![key conformsToProtocol:@protocol(RLMDictionaryKey)] ||
-        !RLMValidateValue(key, dictionary->_keyType, false, false, nil)) {
-        @throw RLMException(@"Invalid key '%@' of type '%@' for expected type '%@'.",
-                            key, [key class], RLMTypeToString(dictionary->_keyType));
-    }
-    if (!value) {
-        return;
-    }
-    if (dictionary->_type != RLMPropertyTypeObject) {
-        if (!RLMValidateValue(value, dictionary->_type, dictionary->_optional, false, nil)) {
-            @throw RLMException(@"Invalid value '%@' of type '%@' for expected type '%@%s'.",
-                                value, [value class], RLMTypeToString(dictionary->_type),
-                                dictionary->_optional ? "?" : "");
-        }
-        return;
-    }
-    auto valueObject = RLMDynamicCast<RLMObjectBase>(value);
-    if (!valueObject) {
-        return;
-    }
-    if (!valueObject->_objectSchema) {
-        @throw RLMException(@"Object cannot be inserted unless the schema is initialized. "
-                            "This can happen if you try to insert objects into a RLMDictionary / Map from a default value or from an overriden unmanaged initializer (`init()`) or if the key is uninitialized.");
-    }
-}
-
-static void changeDictionary(__unsafe_unretained RLMDictionary *const dictionary,
-                      dispatch_block_t f) {
-    if (!dictionary->_backingCollection) {
-        dictionary->_backingCollection = [NSMutableDictionary new];
-    }
-    if (RLMObjectBase *parent = dictionary->_parentObject) {
-        [parent willChangeValueForKey:dictionary->_key];
-        f();
-        [parent didChangeValueForKey:dictionary->_key];
-    }
-    else {
-        f();
-    }
-}
+#pragma clang diagnostic pop // unused parameter warning
 
 #pragma mark - Thread Confined Protocol Conformance
 
