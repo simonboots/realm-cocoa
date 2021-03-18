@@ -83,6 +83,9 @@ extension Object: RealmCollectionValue {
         return RLMSet(objectClassName: className())
     }
 
+    public static func _rlmDictionary() -> RLMDictionary<AnyObject, AnyObject> {
+        return RLMDictionary(objectClassName: className())
+    }
     // MARK: Initializers
 
     /**
@@ -291,6 +294,29 @@ extension Object: RealmCollectionValue {
         return noWarnUnsafeBitCast(dynamicGet(key: propertyName) as! RLMSwiftCollectionBase,
                                    to: MutableSet<DynamicObject>.self)
     }
+    
+    // MARK: Dynamic map
+
+    /**
+     Returns a set of `DynamicObject`s for a given property name.
+
+     - warning:  This method is useful only in specialized circumstances, for example, when building
+     components that integrate with Realm. If you are simply building an app on Realm, it is
+     recommended to use instance variables or cast the values returned from key-value coding.
+
+     - parameter propertyName: The name of the property.
+
+     - returns: A map of  `String` with `DynamicObject`s.
+
+     :nodoc:
+     */
+    public func dynamicMap(_ propertyName: String) -> Map<String, DynamicObject> {
+        if let dynamic = self as? DynamicObject {
+            return dynamic[propertyName] as! Map<String, DynamicObject>
+        }
+        return noWarnUnsafeBitCast(dynamicGet(key: propertyName) as! RLMSwiftCollectionBase,
+                                   to: Map<String, DynamicObject>.self)
+    }
 
     // MARK: Comparison
     /**
@@ -413,6 +439,9 @@ public final class DynamicObject: Object {
             }
             if let set = value as? RLMSet<AnyObject> {
                 return MutableSet<DynamicObject>(objc: set)
+            }
+            if let dictionary = value as? RLMDictionary<AnyObject, AnyObject> {
+                return Map<String, DynamicObject>(objc: dictionary)
             }
             return value
         }
@@ -633,6 +662,9 @@ extension Object: _ManagedPropertyType {
         }
         if prop.optional && prop.set {
             throwRealmException("MutableSet<\(className())> property '\(prop.name)' must not be marked as optional.")
+        }
+        if prop.optional && prop.dictionary {
+            throwRealmException("Map<\(className())> property '\(prop.name)' must not be marked as optional.")
         }
         prop.type = .object
         prop.objectClassName = className()

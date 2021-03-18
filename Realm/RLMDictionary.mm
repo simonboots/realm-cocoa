@@ -102,6 +102,29 @@ void RLMDictionaryValidateMatchingObjectType(__unsafe_unretained RLMDictionary *
     }
 }
 
+void RLMDictionaryValidateMatchingValueType(__unsafe_unretained RLMDictionary *const dictionary,
+                                            __unsafe_unretained id const value) {
+   if (!value) {
+       return;
+   }
+   if (dictionary->_type != RLMPropertyTypeObject) {
+       if (!RLMValidateValue(value, dictionary->_type, dictionary->_optional, false, nil)) {
+           @throw RLMException(@"Invalid value '%@' of type '%@' for expected type '%@%s'.",
+                               value, [value class], RLMTypeToString(dictionary->_type),
+                               dictionary->_optional ? "?" : "");
+       }
+       return;
+   }
+   auto valueObject = RLMDynamicCast<RLMObjectBase>(value);
+   if (!valueObject) {
+       return;
+   }
+   if (!valueObject->_objectSchema) {
+       @throw RLMException(@"Object cannot be inserted unless the schema is initialized. "
+                           "This can happen if you try to insert objects into a RLMDictionary / Map from a default value or from an overriden unmanaged initializer (`init()`) or if the key is uninitialized.");
+   }
+}
+
 static void changeDictionary(__unsafe_unretained RLMDictionary *const dictionary,
                       dispatch_block_t f) {
     if (!dictionary->_backingCollection) {
@@ -337,7 +360,7 @@ static bool canAggregate(RLMPropertyType type, bool allowDate) {
         }
     }
 
-    NSArray *values = [key isEqualToString:@"self"] ? _backingCollection : [_backingCollection valueForKey:key];
+    NSArray *values = [key isEqualToString:@"self"] ? _backingCollection.allValues : [_backingCollection.allValues valueForKey:key];
     if (_optional) {
         // Filter out NSNull values to match our behavior on managed arrays
         NSIndexSet *nonnull = [values indexesOfObjectsPassingTest:^BOOL(id obj, NSUInteger, BOOL *) {
@@ -442,7 +465,13 @@ static bool canAggregate(RLMPropertyType type, bool allowDate) {
 }
 
 - (nonnull id)objectAtIndex:(NSUInteger)index {
-    @throw RLMException(@"RLMDictionary does not implement objectAtIndex:");
+    validateDictionaryBounds(self, index);
+    return _backingCollection.allValues[index];
+}
+
+- (NSUInteger)indexOfObject:(id)value {
+    RLMDictionaryValidateMatchingValueType(self, value);
+    return [_backingCollection.allValues indexOfObject:value];
 }
 
 #pragma clang diagnostic pop // unused parameter warning
@@ -470,12 +499,12 @@ static bool canAggregate(RLMPropertyType type, bool allowDate) {
 }
 
 - (NSString *)descriptionWithMaxDepth:(NSUInteger)depth {
-    return RLMDescriptionWithMaxDepth(@"RLMDictionary", self, depth);
+    return RLMDictionaryDescriptionWithMaxDepth(@"RLMDictionary", self, depth);
 }
 
-NSString *RLMDescriptionWithMaxDepth(NSString *name,
-                                     RLMDictionary *dictionary,
-                                     NSUInteger depth) {
+NSString *RLMDictionaryDescriptionWithMaxDepth(NSString *name,
+                                               RLMDictionary *dictionary,
+                                               NSUInteger depth) {
     if (depth == 0) {
         return @"<Maximum depth exceeded>";
     }
@@ -523,6 +552,16 @@ NSString *RLMDescriptionWithMaxDepth(NSString *name,
     }
     [str appendFormat:@"\n)"];
     return str;
+}
+
+static void validateDictionaryBounds(__unsafe_unretained RLMDictionary *const dictionary,
+                                     NSUInteger index,
+                                     bool allowOnePastEnd=false) {
+    NSUInteger max = dictionary.count + allowOnePastEnd;
+    if (index >= max) {
+        @throw RLMException(@"Index %llu is out of bounds (must be less than %llu).",
+                            (unsigned long long)index, (unsigned long long)max);
+    }
 }
 
 @end

@@ -347,6 +347,12 @@ class SwiftMutableSetPropertyObject: Object {
     let intSet = MutableSet<SwiftIntObject>()
 }
 
+class SwiftMapPropertyObject: Object {
+    @objc dynamic var name = ""
+    let map = Map<String, SwiftStringObject>()
+    let intMap = Map<String, SwiftIntObject>()
+}
+
 class SwiftDoubleListOfSwiftObject: Object {
     let array = List<SwiftListOfSwiftObject>()
 }
@@ -357,6 +363,10 @@ class SwiftListOfSwiftObject: Object {
 
 class SwiftMutableSetOfSwiftObject: Object {
     let set = MutableSet<SwiftObject>()
+}
+
+class SwiftMapOfSwiftObject: Object {
+    let map = Map<String, SwiftObject>()
 }
 
 class SwiftListOfSwiftOptionalObject: Object {
