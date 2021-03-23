@@ -703,11 +703,11 @@ extension MutableSet: _ManagedPropertyType where Element: _ManagedPropertyType {
 }
 
 /// :nodoc:
-extension Map: _ManagedPropertyType where Element: _ManagedPropertyType {
+extension Map: _ManagedPropertyType where Value: _ManagedPropertyType {
     // swiftlint:disable:next identifier_name
     public static func _rlmProperty(_ prop: RLMProperty) {
         prop.dictionary = true
-        Element._rlmProperty(prop)
+        Value._rlmProperty(prop)
     }
     // swiftlint:disable:next identifier_name
     public static func _rlmRequireObjc() -> Bool { return false }

@@ -276,18 +276,36 @@ static void changeDictionary(__unsafe_unretained RLMDictionary *const dictionary
     __autoreleasing RLMDictionaryHolder *copy = [[RLMDictionaryHolder alloc] init];
     copy->items = std::make_unique<id[]>(_backingCollection.count);
 
+//    std::vector<std::pair<id<RLMDictionaryKey>, id>> pairs;
     NSUInteger i = 0;
-    for (id object in _backingCollection.allValues) {
-        copy->items[i++] = object;
+    for (id key in _backingCollection) {
+//        pairs.push_back({key, _backingCollection[key]});
+//        auto p = std::make_pair(key, _backingCollection[key]);
+//        std::pair<id<RLMDictionaryKey>, id> pair({key, _backingCollection[key]});
+        id val = @{key: _backingCollection[key]};
+        copy->items[i++] = val;
     }
 
     state->itemsPtr = (__unsafe_unretained id *)(void *)copy->items.get();
+//    state->itemsPtr = (__unsafe_unretained id *)(void *)(&pairs[0]);
     // needs to point to something valid, but the whole point of this is so
     // that it can't be changed
     state->mutationsPtr = state->extra;
     state->state = i;
 
     return i;
+}
+
+
+- (RLMFastEnumerator *)fastEnumerator {
+    @throw RLMException(@"fastEnumerator.");
+//    return [[RLMFastEnumerator alloc] initWithBackingCollection:_backingCollection
+//                                                     collection:self
+//                                                      classInfo:*_objectInfo];
+}
+
+- (std::pair<realm::StringData, realm::Mixed>)elementAtIndex:(NSInteger)index {
+    @throw RLMException(@"not implemented");
 }
 
 #pragma mark - Aggregate operations
@@ -438,9 +456,14 @@ static bool canAggregate(RLMPropertyType type, bool allowDate) {
     @throw RLMException(@"This method may only be called on RLMDictionary instances retrieved from an RLMRealm");
 }
 
-- (NSUInteger)indexOfObjectWithPredicate:(NSPredicate *)predicate {
-    @throw RLMException(@"RLMDictionary does not implement indexOfObjectWithPredicate:");
-}
+//- (NSUInteger)indexOfObjectWithPredicate:(NSPredicate *)predicate {
+//    if (!_backingCollection) {
+//        return NSNotFound;
+//    }
+//    return [_backingCollection.allValues indexOfObjectPassingTest:^BOOL(id obj, NSUInteger, BOOL *) {
+//        return [predicate evaluateWithObject:obj];
+//    }];
+//}
 
 // The compiler complains about the method's argument type not matching due to
 // it not having the generic type attached, but it doesn't seem to be possible

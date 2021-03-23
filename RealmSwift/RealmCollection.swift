@@ -45,6 +45,41 @@ import Realm
     }
 }
 
+@frozen public struct RLMMapIterator<Key: RealmCollectionValue, Value: RealmCollectionValue>: IteratorProtocol {
+    public typealias Element = MapElement<Key, Value>
+
+    private var generatorBase: NSFastEnumerationIterator
+    private var collection: RLMDictionary<AnyObject, AnyObject>
+    
+    init(collection: RLMDictionary<AnyObject, AnyObject>) {
+        self.collection = collection
+        generatorBase = NSFastEnumerationIterator(collection)
+    }
+
+    /// Advance to the next element and return it, or `nil` if no next element exists.
+    public mutating func next() -> Element? {
+        let next = generatorBase.next()
+        if next is NSNull {
+            return Element._nilValue()
+        }
+        if let next = next as? NSDictionary {
+            let key: Key = dynamicBridgeCast(fromObjectiveC: next.allKeys.first!)
+            let val: Value = dynamicBridgeCast(fromObjectiveC: next[key]!)
+            return MapElement<Key, Value>(key: key, value: val)
+        }
+        else if let next = next as? Object? {
+            if next == nil {
+                return Element._nilValue()
+            }
+//            let key: Key = dynamicBridgeCast(fromObjectiveC: next.allKeys.first!)
+//            let val: Value = dynamicBridgeCast(fromObjectiveC: next[key]!)
+            return unsafeBitCast(next, to: Optional<Element>.self)
+        }
+
+        return dynamicBridgeCast(fromObjectiveC: next as Any)
+    }
+}
+
 /**
  A `RealmCollectionChange` value encapsulates information about changes to collections
  that are reported by Realm notifications.
@@ -216,6 +251,21 @@ private func dictionaryType<T>(_ type: T.Type) -> RLMDictionary<AnyObject, AnyOb
     case is ObjectId.Type:   return RLMDictionary(objectType: .objectId, optional: true)
     case is UUID.Type:       return RLMDictionary(objectType: .UUID, optional: true)
     default: fatalError("Unsupported type for Map: \(type)?")
+    }
+}
+
+extension MapElement {
+    /// :nodoc:
+    public static func _rlmArray() -> RLMArray<AnyObject> {
+        fatalError()
+    }
+    /// :nodoc:
+    public static func _rlmSet() -> RLMSet<AnyObject> {
+        fatalError()
+    }
+    /// :nodoc:
+    public static func _rlmDictionary() -> RLMDictionary<AnyObject, AnyObject> {
+        return dictionaryType(Value.self)
     }
 }
 
