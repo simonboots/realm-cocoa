@@ -82,7 +82,7 @@ extension Object: RealmCollectionValue {
     public static func _rlmSet() -> RLMSet<AnyObject> {
         return RLMSet(objectClassName: className())
     }
-
+    /// :nodoc:
     public static func _rlmDictionary() -> RLMDictionary<AnyObject, AnyObject> {
         return RLMDictionary(objectClassName: className())
     }
@@ -294,7 +294,7 @@ extension Object: RealmCollectionValue {
         return noWarnUnsafeBitCast(dynamicGet(key: propertyName) as! RLMSwiftCollectionBase,
                                    to: MutableSet<DynamicObject>.self)
     }
-    
+
     // MARK: Dynamic map
 
     /**

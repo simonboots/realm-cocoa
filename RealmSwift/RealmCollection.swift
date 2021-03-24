@@ -53,7 +53,7 @@ import Realm
 
     private var generatorBase: NSFastEnumerationIterator
     private var collection: RLMDictionary<AnyObject, AnyObject>
-    
+
     init(collection: RLMDictionary<AnyObject, AnyObject>) {
         self.collection = collection
         generatorBase = NSFastEnumerationIterator(collection)
@@ -69,8 +69,7 @@ import Realm
             let key: Key = dynamicBridgeCast(fromObjectiveC: next.allKeys.first!)
             let val: Value = dynamicBridgeCast(fromObjectiveC: next[key]!)
             return (key, val)
-        }
-        else if let next = next as? Key {
+        } else if let next = next as? Key {
             let key: Key = next//dynamicBridgeCast(fromObjectiveC: next.allKeys.first!)
             let val: Value = dynamicBridgeCast(fromObjectiveC: collection[key as! RLMDictionaryKey]!)
             return (key, val)

@@ -21,6 +21,7 @@ identifier_name:
     - _rlmArray()
     - _rlmSet()
     - _rlmCollection()
+    - _rlmDictionary()
     - id
     - pk
     - to
