@@ -83,6 +83,16 @@ static double average(NSDictionary *dictionary) {
 @implementation LinkToAllOptionalPrimitiveDictionaries
 @end
 
+@interface RLMDictionary (Tests)
+-(void)addObjects:(NSDictionary *)dictionary;
+@end
+@implementation RLMDictionary (Tests)
+-(void)addObjects:(NSDictionary *)dictionary {
+    for (id key in dictionary.allKeys) {
+        self[key] = dictionary[key];
+    }
+}
+
 @interface PrimitiveDictionaryPropertyTests : RLMTestCase
 @end
 

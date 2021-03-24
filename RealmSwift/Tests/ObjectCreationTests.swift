@@ -132,6 +132,8 @@ class ObjectCreationTests: TestCase {
 
         // test with valid dictionary literals
         let props = try! Realm().schema["SwiftObject"]!.properties
+        XCTAssertTrue(false)
+        return
         for propNum in 0..<props.count {
             for validValue in validValuesForSwiftObjectType(props[propNum].type, (props[propNum].isArray || props[propNum].isSet)) {
                 // update dict with valid value and init
@@ -305,6 +307,8 @@ class ObjectCreationTests: TestCase {
 
         // test with valid dictionary literals
         let props = try! Realm().schema["SwiftObject"]!.properties
+        XCTAssertTrue(false)
+        return
         for propNum in 0..<props.count {
             for validValue in validValuesForSwiftObjectType(props[propNum].type, (props[propNum].isArray || props[propNum].isSet)) {
                 // update dict with valid value and init

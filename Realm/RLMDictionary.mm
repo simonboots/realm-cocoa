@@ -276,18 +276,14 @@ static void changeDictionary(__unsafe_unretained RLMDictionary *const dictionary
     __autoreleasing RLMDictionaryHolder *copy = [[RLMDictionaryHolder alloc] init];
     copy->items = std::make_unique<id[]>(_backingCollection.count);
 
-//    std::vector<std::pair<id<RLMDictionaryKey>, id>> pairs;
     NSUInteger i = 0;
-    for (id key in _backingCollection) {
-//        pairs.push_back({key, _backingCollection[key]});
-//        auto p = std::make_pair(key, _backingCollection[key]);
-//        std::pair<id<RLMDictionaryKey>, id> pair({key, _backingCollection[key]});
-        id val = @{key: _backingCollection[key]};
-        copy->items[i++] = val;
+    if ([_backingCollection isKindOfClass:[NSDictionary class]]) {
+        for (id key in _backingCollection) {
+//            copy->items[i++] = std::make_pair(key, _backingCollection[key];
+            copy->items[i++] = @{key: _backingCollection[key]};
+        }
     }
-
     state->itemsPtr = (__unsafe_unretained id *)(void *)copy->items.get();
-//    state->itemsPtr = (__unsafe_unretained id *)(void *)(&pairs[0]);
     // needs to point to something valid, but the whole point of this is so
     // that it can't be changed
     state->mutationsPtr = state->extra;
@@ -302,10 +298,6 @@ static void changeDictionary(__unsafe_unretained RLMDictionary *const dictionary
 //    return [[RLMFastEnumerator alloc] initWithBackingCollection:_backingCollection
 //                                                     collection:self
 //                                                      classInfo:*_objectInfo];
-}
-
-- (std::pair<realm::StringData, realm::Mixed>)elementAtIndex:(NSInteger)index {
-    @throw RLMException(@"not implemented");
 }
 
 #pragma mark - Aggregate operations

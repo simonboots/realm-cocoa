@@ -22,7 +22,7 @@ import Realm
 /**
  An iterator for a `RealmCollection` instance.
  */
-@frozen public struct RLMIterator<Element: RealmCollectionValue>: IteratorProtocol {
+@frozen public struct RLMIterator<Element/*: RealmCollectionValue*/>: IteratorProtocol {
     private var generatorBase: NSFastEnumerationIterator
 
     init(collection: RLMCollection) {
@@ -32,8 +32,8 @@ import Realm
     /// Advance to the next element and return it, or `nil` if no next element exists.
     public mutating func next() -> Element? {
         let next = generatorBase.next()
-        if next is NSNull {
-            return Element._nilValue()
+        if next == nil {
+            return nil as Element? //Element._nilValue()
         }
         if let next = next as? Object? {
             if next == nil {
@@ -41,12 +41,15 @@ import Realm
             }
             return unsafeBitCast(next, to: Optional<Element>.self)
         }
+        if let next = next as? Element {
+            return next
+        }
         return dynamicBridgeCast(fromObjectiveC: next as Any)
     }
 }
 
 @frozen public struct RLMMapIterator<Key: RealmCollectionValue, Value: RealmCollectionValue>: IteratorProtocol {
-    public typealias Element = MapElement<Key, Value>
+    public typealias Element = (Key, Value)
 
     private var generatorBase: NSFastEnumerationIterator
     private var collection: RLMDictionary<AnyObject, AnyObject>
@@ -59,23 +62,19 @@ import Realm
     /// Advance to the next element and return it, or `nil` if no next element exists.
     public mutating func next() -> Element? {
         let next = generatorBase.next()
-        if next is NSNull {
-            return Element._nilValue()
+        if next == nil {
+            return nil
         }
         if let next = next as? NSDictionary {
             let key: Key = dynamicBridgeCast(fromObjectiveC: next.allKeys.first!)
             let val: Value = dynamicBridgeCast(fromObjectiveC: next[key]!)
-            return MapElement<Key, Value>(key: key, value: val)
+            return (key, val)
         }
-        else if let next = next as? Object? {
-            if next == nil {
-                return Element._nilValue()
-            }
-//            let key: Key = dynamicBridgeCast(fromObjectiveC: next.allKeys.first!)
-//            let val: Value = dynamicBridgeCast(fromObjectiveC: next[key]!)
-            return unsafeBitCast(next, to: Optional<Element>.self)
+        else if let next = next as? Key {
+            let key: Key = next//dynamicBridgeCast(fromObjectiveC: next.allKeys.first!)
+            let val: Value = dynamicBridgeCast(fromObjectiveC: collection[key as! RLMDictionaryKey]!)
+            return (key, val)
         }
-
         return dynamicBridgeCast(fromObjectiveC: next as Any)
     }
 }
@@ -254,21 +253,6 @@ private func dictionaryType<T>(_ type: T.Type) -> RLMDictionary<AnyObject, AnyOb
     }
 }
 
-extension MapElement {
-    /// :nodoc:
-    public static func _rlmArray() -> RLMArray<AnyObject> {
-        fatalError()
-    }
-    /// :nodoc:
-    public static func _rlmSet() -> RLMSet<AnyObject> {
-        fatalError()
-    }
-    /// :nodoc:
-    public static func _rlmDictionary() -> RLMDictionary<AnyObject, AnyObject> {
-        return dictionaryType(Value.self)
-    }
-}
-
 extension Optional: RealmCollectionValue where Wrapped: RealmCollectionValue {
     /// :nodoc:
     public static func _rlmArray() -> RLMArray<AnyObject> {
@@ -428,7 +412,7 @@ public protocol _RealmCollectionEnumerator {
 }
 
 /// :nodoc:
-public protocol RealmCollectionBase: RandomAccessCollection, LazyCollectionProtocol, CustomStringConvertible, ThreadConfined where Element: RealmCollectionValue {
+public protocol RealmCollectionBase: RandomAccessCollection, LazyCollectionProtocol, CustomStringConvertible, ThreadConfined /*where Element: RealmCollectionValue*/ {
     // This typealias was needed with Swift 3.1. It no longer is, but remains
     // just in case someone was depending on it
     typealias ElementType = Element
@@ -818,7 +802,7 @@ public extension RealmCollection where Element: OptionalProtocol, Element.Wrappe
     }
 }
 
-private class _AnyRealmCollectionBase<T: RealmCollectionValue>: AssistedObjectiveCBridgeable {
+private class _AnyRealmCollectionBase<T/*: RealmCollectionValue*/>: AssistedObjectiveCBridgeable {
     typealias Wrapper = AnyRealmCollection<Element>
     typealias Element = T
     var realm: Realm? { fatalError() }
@@ -982,7 +966,7 @@ private final class _AnyRealmCollection<C: RealmCollection>: _AnyRealmCollection
 
  Instances of `RealmCollection` forward operations to an opaque underlying collection having the same `Element` type.
  */
-public struct AnyRealmCollection<Element: RealmCollectionValue>: RealmCollection {
+public struct AnyRealmCollection<Element/*: RealmCollectionValue*/>: RealmCollection {
 
     /// The type of the objects contained within the collection.
     public typealias ElementType = Element
@@ -1284,7 +1268,7 @@ public struct AnyRealmCollection<Element: RealmCollectionValue>: RealmCollection
 
 // MARK: AssistedObjectiveCBridgeable
 
-private struct AnyRealmCollectionBridgingMetadata<T: RealmCollectionValue> {
+private struct AnyRealmCollectionBridgingMetadata<T/*: RealmCollectionValue*/> {
     var baseMetadata: Any?
     var baseType: _AnyRealmCollectionBase<T>.Type
 }

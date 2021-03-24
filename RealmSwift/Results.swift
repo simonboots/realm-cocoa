@@ -80,7 +80,7 @@ extension Decimal128: AddableType {}
 
  Results instances cannot be directly instantiated.
  */
-@frozen public struct Results<Element: RealmCollectionValue>: Equatable {
+@frozen public struct Results<Element>: Equatable /*where Element: RealmCollectionValue*/ {
 
     internal let rlmResults: RLMResults<AnyObject>
 
