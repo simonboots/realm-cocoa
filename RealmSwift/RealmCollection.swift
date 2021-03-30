@@ -22,7 +22,7 @@ import Realm
 /**
  An iterator for a `RealmCollection` instance.
  */
-@frozen public struct RLMIterator<Element/*: RealmCollectionValue*/>: IteratorProtocol {
+@frozen public struct RLMIterator<Element>: IteratorProtocol {
     private var generatorBase: NSFastEnumerationIterator
 
     init(collection: RLMCollection) {
@@ -32,17 +32,22 @@ import Realm
     /// Advance to the next element and return it, or `nil` if no next element exists.
     public mutating func next() -> Element? {
         let next = generatorBase.next()
-        if next == nil {
-            return nil as Element? //Element._nilValue()
+        if next is NSNull {
+            return nil
         }
+//        if !(next is Element.ReturnElement) {
+//            return ReturnElement
+//        }
+//        if let next = next as? NSDictionary {
+//            let key = dynamicBridgeCast(fromObjectiveC: next.allKeys.first!)
+//            let val = dynamicBridgeCast(fromObjectiveC: next[key]!)
+//            return (key, val) as ReturnElement?
+//        }
         if let next = next as? Object? {
             if next == nil {
-                return nil as Element?
+                return nil
             }
             return unsafeBitCast(next, to: Optional<Element>.self)
-        }
-        if let next = next as? Element {
-            return next
         }
         return dynamicBridgeCast(fromObjectiveC: next as Any)
     }
@@ -411,7 +416,7 @@ public protocol _RealmCollectionEnumerator {
 }
 
 /// :nodoc:
-public protocol RealmCollectionBase: RandomAccessCollection, LazyCollectionProtocol, CustomStringConvertible, ThreadConfined /*where Element: RealmCollectionValue*/ {
+public protocol RealmCollectionBase: RandomAccessCollection, LazyCollectionProtocol, CustomStringConvertible, ThreadConfined {
     // This typealias was needed with Swift 3.1. It no longer is, but remains
     // just in case someone was depending on it
     typealias ElementType = Element
@@ -1123,6 +1128,8 @@ public struct AnyRealmCollection<Element/*: RealmCollectionValue*/>: RealmCollec
     public subscript(position: Int) -> Element { return base[position] }
 
     /// Returns a `RLMIterator` that yields successive elements in the collection.
+//    public func makeIterator() -> IteratorProtocol { return base.makeIterator() }
+//    public func makeIterator() -> IndexingIterator<AnyRealmCollection<Element>> { return base.makeIterator() }
     public func makeIterator() -> RLMIterator<Element> { return base.makeIterator() }
 
     /// :nodoc:
@@ -1321,6 +1328,7 @@ extension ObservableCollection {
         }
     }
 }
+
 extension List: ObservableCollection {
     internal typealias BackingObjcCollection = RLMArray<AnyObject>
     internal func isSameObjcCollection(_ rlmArray: BackingObjcCollection) -> Bool {
@@ -1335,12 +1343,12 @@ extension MutableSet: ObservableCollection {
     }
 }
 
-extension Map: ObservableCollection {
-    internal typealias BackingObjcCollection = RLMDictionary<AnyObject, AnyObject>
-    internal func isSameObjcCollection(_ rlmDictionary: BackingObjcCollection) -> Bool {
-        return _rlmCollection === rlmDictionary
-    }
-}
+//extension Map: ObservableCollection {
+//    internal typealias BackingObjcCollection = RLMDictionary<AnyObject, AnyObject>
+//    internal func isSameObjcCollection(_ rlmDictionary: BackingObjcCollection) -> Bool {
+//        return _rlmCollection === rlmDictionary
+//    }
+//}
 
 extension Results: ObservableCollection {
     internal typealias BackingObjcCollection = RLMResults<AnyObject>

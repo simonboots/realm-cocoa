@@ -279,8 +279,8 @@ static void changeDictionary(__unsafe_unretained RLMDictionary *const dictionary
     NSUInteger i = 0;
     if ([_backingCollection isKindOfClass:[NSDictionary class]]) {
         for (id key in _backingCollection) {
-//            copy->items[i++] = std::make_pair(key, _backingCollection[key];
-            copy->items[i++] = @{key: _backingCollection[key]};
+//            copy->items[i++] = @{key: _backingCollection[key]};
+            copy->items[i++] = key;
         }
     }
     state->itemsPtr = (__unsafe_unretained id *)(void *)copy->items.get();
