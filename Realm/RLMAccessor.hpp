@@ -104,8 +104,8 @@ public:
             }
             else {
                 id key = pair;
-//                func(unbox<realm::StringData>(key), value);
-                1/0;
+                id value = v[key];
+                func(unbox<realm::StringData>(key), value);
             }
         }
     }

@@ -72,6 +72,13 @@ extension RLMDictionary: Sequence {}
 extension RLMSet: Sequence {}
 extension RLMResults: Sequence {}
 
+extension RLMDictionary {
+    @objc
+    func countByEnumerating(with state: UnsafeMutablePointer<NSFastEnumerationState>,
+                            objects buffer: AutoreleasingUnsafeMutablePointer<AnyObject?>,
+                            count len: Int) -> Int {
+        return (allKeys as NSArray).countByEnumerating(with: state, objects: buffer, count: len)
+}
 /**
  This struct enables sequence-style enumeration for RLMObjects in Swift via `RLMCollection.makeIterator`
  */
