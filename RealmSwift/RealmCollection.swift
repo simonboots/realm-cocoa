@@ -34,15 +34,8 @@ import Realm
         let next = generatorBase.next()
         if next is NSNull {
             return nil
+//            return Element._nilValue()
         }
-//        if !(next is Element.ReturnElement) {
-//            return ReturnElement
-//        }
-//        if let next = next as? NSDictionary {
-//            let key = dynamicBridgeCast(fromObjectiveC: next.allKeys.first!)
-//            let val = dynamicBridgeCast(fromObjectiveC: next[key]!)
-//            return (key, val) as ReturnElement?
-//        }
         if let next = next as? Object? {
             if next == nil {
                 return nil
@@ -50,6 +43,26 @@ import Realm
             return unsafeBitCast(next, to: Optional<Element>.self)
         }
         return dynamicBridgeCast(fromObjectiveC: next as Any)
+
+//        let next = generatorBase.next()
+//        if next is NSNull {
+//            return nil
+//        }
+////        if !(next is Element.ReturnElement) {
+////            return ReturnElement
+////        }
+////        if let next = next as? NSDictionary {
+////            let key = dynamicBridgeCast(fromObjectiveC: next.allKeys.first!)
+////            let val = dynamicBridgeCast(fromObjectiveC: next[key]!)
+////            return (key, val) as ReturnElement?
+////        }
+//        if let next = next as? Object? {
+//            if next == nil {
+//                return nil
+//            }
+//            return unsafeBitCast(next, to: Optional<Element>.self)
+//        }
+//        return dynamicBridgeCast(fromObjectiveC: next as Any)
     }
 }
 
@@ -70,11 +83,12 @@ import Realm
         if next == nil {
             return nil
         }
-        if let next = next as? NSDictionary {
-            let key: Key = dynamicBridgeCast(fromObjectiveC: next.allKeys.first!)
-            let val: Value = dynamicBridgeCast(fromObjectiveC: next[key]!)
-            return (key, val)
-        } else if let next = next as? Key {
+//        if let next = next as? NSDictionary {
+//            let key: Key = dynamicBridgeCast(fromObjectiveC: next.allKeys.first!)
+//            let val: Value = dynamicBridgeCast(fromObjectiveC: next[key]!)
+//            return (key, val)
+//        } else
+        if let next = next as? Key {
             let key: Key = next//dynamicBridgeCast(fromObjectiveC: next.allKeys.first!)
             let val: Value = dynamicBridgeCast(fromObjectiveC: collection[key as! RLMDictionaryKey]!)
             return (key, val)
@@ -1128,8 +1142,6 @@ public struct AnyRealmCollection<Element/*: RealmCollectionValue*/>: RealmCollec
     public subscript(position: Int) -> Element { return base[position] }
 
     /// Returns a `RLMIterator` that yields successive elements in the collection.
-//    public func makeIterator() -> IteratorProtocol { return base.makeIterator() }
-//    public func makeIterator() -> IndexingIterator<AnyRealmCollection<Element>> { return base.makeIterator() }
     public func makeIterator() -> RLMIterator<Element> { return base.makeIterator() }
 
     /// :nodoc:
