@@ -62,7 +62,7 @@ let package = Package(
             targets: ["Realm", "RealmSwift"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/realm/realm-core", .exact(Version(coreVersionStr)!))
+        .package(url: "https://github.com/simonboots/realm-core", .exact(Version("10.5.0-recycledelay.1")))
     ],
     targets: [
       .target(
